@@ -14,22 +14,18 @@ function Login() {
     if (e && e.preventDefault) {
       e.preventDefault();
     }
-    console.log('[ADMIN] Login action triggered');
     setLoading(true);
     setError('');
 
     try {
-      console.log('[ADMIN] Calling adminApi.login...');
       const result = await adminApi.login(credentials.username, credentials.password);
-      console.log('[ADMIN] Login response received:', result);
 
       if (result.status === 'success') {
         login(result.sessionToken);
       } else {
         setError(result.message || 'Login failed');
       }
-    } catch (err) {
-      console.error('[ADMIN] Login catch block:', err);
+    } catch {
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);

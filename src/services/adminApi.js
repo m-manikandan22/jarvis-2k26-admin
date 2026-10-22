@@ -1,44 +1,28 @@
-import { ADMIN_GAS_URL } from '../config/adminGasConfig';
+import { ADMIN_API_URL } from '../config/adminGasConfig';
 
 /**
- * Admin API Service
- * Handles communication with the Admin GAS Backend.
- *
- * Uses "Simple Requests" (no Content-Type: application/json) to avoid
- * CORS preflight OPTIONS requests, which Google Apps Script does not support.
+ * Calls the same-origin Vercel API function, which proxies requests to GAS.
+ * Keeping the GAS request server-side avoids browser CORS and redirect issues.
  */
 async function request(payload) {
+  const response = await fetch(ADMIN_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  let result;
   try {
-    console.log('[ADMIN] API Request starting');
-    console.log('[ADMIN] Endpoint:', ADMIN_GAS_URL);
-    console.log('[ADMIN] Payload:', JSON.stringify(payload));
-
-    const response = await fetch(ADMIN_GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-
-    console.log('[ADMIN] Fetch response status:', response.status);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    let result;
-    try {
-      result = await response.json();
-    } catch (parseErr) {
-      // Attempt to get raw text for debugging
-      const raw = await response.text();
-      console.error('[ADMIN] Failed to parse JSON response. Raw response:', raw);
-      throw new Error('Invalid JSON response from server');
-    }
-    console.log('[ADMIN] Parsed JSON result:', result);
-    return result;
-  } catch (err) {
-    console.error('[ADMIN] API Request Error:', err);
-    throw err; // Propagate network errors to the component
+    result = await response.json();
+  } catch {
+    throw new Error('Invalid JSON response from admin backend.');
   }
+
+  if (!response.ok) {
+    throw new Error(result.message || `Admin API request failed with status ${response.status}.`);
+  }
+
+  return result;
 }
 
 export const adminApi = {

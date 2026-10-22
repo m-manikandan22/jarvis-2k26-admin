@@ -1,20 +1,36 @@
 import assert from 'assert';
-import { ADMIN_GAS_URL } from '../src/config/adminGasConfig.js';
-// Use global fetch (Node >=18). If not available, fallback to node-fetch.
-const fetchFn = typeof fetch !== 'undefined' ? fetch : (await import('node-fetch')).default;
+import fs from 'node:fs';
+import path from 'node:path';
+import adminHandler from '../api/admin.js';
 
 async function request(payload) {
-  const response = await fetchFn(ADMIN_GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  });
-  const data = await response.json();
-  return data;
+  const response = {
+    statusCode: 200,
+    setHeader() {},
+    end(body) {
+      this.body = body;
+    },
+  };
+  await adminHandler({ method: 'POST', body: payload }, response);
+  assert.strictEqual(response.statusCode, 200, `Admin API request failed with status ${response.statusCode}`);
+  return JSON.parse(response.body);
 }
 
-// Load frontend schedule mapping (parse the source file)
-import fs from 'fs';
-import path from 'path';
+if (!process.env.VITE_ADMIN_GAS_URL) {
+  const envPath = path.resolve('.env');
+  if (fs.existsSync(envPath)) {
+    const gasUrlLine = fs.readFileSync(envPath, 'utf8')
+      .split(/\r?\n/)
+      .find((line) => /^\s*VITE_ADMIN_GAS_URL\s*=/.test(line));
+    if (gasUrlLine) {
+      process.env.VITE_ADMIN_GAS_URL = gasUrlLine
+        .slice(gasUrlLine.indexOf('=') + 1)
+        .trim()
+        .replace(/^(['"])(.*)\1$/, '$2');
+    }
+  }
+}
+
 const eventParticipantsPath = path.resolve('src', 'components', 'EventParticipants.jsx');
 const fileContent = fs.readFileSync(eventParticipantsPath, 'utf-8');
 const scheduleMatch = fileContent.match(/const EVENT_SCHEDULE = \{([\s\S]*?)\};/);
@@ -29,7 +45,10 @@ scheduleObjectString.replace(/'([^']+)'\s*:/g, (_, id) => { frontendIds.push(id)
   // 1. Login to obtain session token (credentials from env)
   const username = process.env.ADMIN_USERNAME;
   const password = process.env.ADMIN_PASSWORD;
-  assert(username && password, 'Set ADMIN_USERNAME and ADMIN_PASSWORD env variables');
+  if (!username || !password || !process.env.VITE_ADMIN_GAS_URL) {
+    console.log('Skipping backend integration tests: set ADMIN_USERNAME, ADMIN_PASSWORD, and VITE_ADMIN_GAS_URL');
+    return;
+  }
   const loginRes = await request({ requestType: 'login', username, password });
   assert.strictEqual(loginRes.status, 'success', 'Login failed: ' + loginRes.message);
   const token = loginRes.sessionToken;

@@ -1,1 +1,1 @@
-export const ADMIN_GAS_URL = '/api/admin';
+export const ADMIN_API_URL = '/api/admin';
